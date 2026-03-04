@@ -1,0 +1,176 @@
+# WHAT YOU'LL LEARN:
+#   1. How to group logs so they're easier to read
+#   2. How to add coloured notices, warnings and errors
+#   3. How to hide sensitive values from logs
+#   4. How to write a nice summary on the GitHub UI
+#   5. How to save log files as downloadable artifacts
+#   6. How to get notified when a workflow fails
+#
+# ============================================================
+
+name: Learn - Logging and Monitoring
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+
+jobs:
+  # ════════════════════════════════════════════════════════════
+  # JOB 1: All the different logging techniques
+  # ════════════════════════════════════════════════════════════
+  logging-examples:
+    name: "Logging Techniques"
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── TECHNIQUE 1: Grouping logs ───────────────────────────
+      # Grouped logs appear as collapsible sections in the GitHub UI.
+      # Very useful when a step has a lot of output — keeps it tidy.
+      - name: "Technique 1 — Grouped logs"
+        run: |
+          echo "::group::📦 Installing packages"
+          echo "Installing express..."
+          echo "Installing dotenv..."
+          echo "Installing jest..."
+          echo "All packages installed!"
+          echo "::endgroup::"
+
+          echo "::group::🔨 Building the app"
+          echo "Compiling TypeScript..."
+          echo "Bundling assets..."
+          echo "Build finished!"
+          echo "::endgroup::"
+
+          echo "Everything above this is grouped 👆"
+
+      # ── TECHNIQUE 2: Notices, Warnings and Errors ────────────
+      # These appear as coloured banners in the GitHub UI.
+      # Notice = blue, Warning = yellow, Error = red
+      - name: "Technique 2 — Coloured annotations"
+        run: |
+          # Blue info banner
+          echo "::notice::ℹ️ This is an info notice — just FYI"
+
+          # Yellow warning banner
+          echo "::warning::⚠️ This is a warning — something looks off"
+
+          # Red error banner (does NOT fail the step on its own)
+          echo "::error::❌ This is an error annotation"
+
+          # You can also point to a specific file and line number
+          echo "::warning file=src/index.js,line=42::This function is deprecated"
+
+      # ── TECHNIQUE 3: Hiding sensitive values ─────────────────
+      # Use ::add-mask:: to prevent a value from ever appearing in logs.
+      # ALWAYS mask BEFORE you use the value — not after.
+      - name: "Technique 3 — Masking secrets"
+        run: |
+          MY_SECRET="super-secret-password-123"
+
+          # Mask it first
+          echo "::add-mask::$MY_SECRET"
+
+          # Now if it appears anywhere in this run, GitHub shows ***
+          echo "Secret is: $MY_SECRET"    # This will show: Secret is: ***
+          echo "Length   : ${#MY_SECRET} characters"
+
+      # ── TECHNIQUE 4: Creating a nice Summary ─────────────────
+      # Anything you write to $GITHUB_STEP_SUMMARY appears in
+      # the "Summary" tab of your workflow run in the GitHub UI.
+      # It supports Markdown — headings, tables, bold text, etc.
+      - name: "Technique 4 — Step summary"
+        run: |
+          cat >> $GITHUB_STEP_SUMMARY << 'SUMMARY'
+          ## ✅ Build Report
+
+          | Check         | Result | Time |
+          |---------------|--------|------|
+          | Install       | ✅ Pass | 12s  |
+          | Tests         | ✅ Pass | 34s  |
+          | Lint          | ✅ Pass | 8s   |
+          | Build         | ✅ Pass | 21s  |
+
+          **Total time:** ~75 seconds
+
+          > Everything looks great! Ready to deploy.
+          SUMMARY
+
+          echo "Summary written! Check the Summary tab in GitHub UI ☝️"
+
+      # ── TECHNIQUE 5: Saving files as Artifacts ───────────────
+      # Artifacts are files you can download after the workflow runs.
+      # Use them for: test reports, log files, build output, etc.
+      - name: "Technique 5a — Create some log files"
+        run: |
+          mkdir -p logs
+
+          # Simulate writing log files
+          echo "[$(date)] INFO  App started successfully"    >  logs/app.log
+          echo "[$(date)] INFO  Connected to database"      >> logs/app.log
+          echo "[$(date)] WARN  Response time is slow: 2.3s">> logs/app.log
+          echo "[$(date)] INFO  Processed 100 requests"     >> logs/app.log
+
+          echo "Log files created!"
+          cat logs/app.log
+
+      - name: "Technique 5b — Upload logs as downloadable artifact"
+        uses: actions/upload-artifact@v4
+        if: always() # ← Upload even if the job fails — very important for debugging!
+        with:
+          name: app-logs-run-${{ github.run_number }}
+          path: logs/
+          retention-days: 7 # Keep for 7 days then auto-delete
+
+      # ── TECHNIQUE 6: Passing values between steps ────────────
+      # Use $GITHUB_OUTPUT to send a value from one step to the next.
+      - name: "Technique 6a — Set an output value"
+        id: build-step # Give this step an ID so we can reference it
+        run: |
+          BUILD_ID="build-${{ github.run_number }}-$(date +'%Y%m%d')"
+          echo "build_id=$BUILD_ID" >> $GITHUB_OUTPUT
+          echo "Created build ID: $BUILD_ID"
+
+      - name: "Technique 6b — Use the output from the previous step"
+        run: |
+          echo "Build ID from previous step: ${{ steps.build-step.outputs.build_id }}"
+
+  # ════════════════════════════════════════════════════════════
+  # JOB 2: Alert when something goes wrong
+  # This job ONLY runs if job 1 fails.
+  # ════════════════════════════════════════════════════════════
+  alert-on-failure:
+    name: "Alert — Send Notification on Failure"
+    runs-on: ubuntu-latest
+    needs: logging-examples
+    if: failure() # ← Only runs if the job above FAILED
+
+    steps:
+      - name: "Print failure details"
+        run: |
+          echo "🚨 The workflow FAILED!"
+          echo ""
+          echo "Details:"
+          echo "  Repo   : ${{ github.repository }}"
+          echo "  Branch : ${{ github.ref_name }}"
+          echo "  Commit : ${{ github.sha }}"
+          echo "  Run    : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+      # Uncomment this to send a real Slack message:
+      # (Add SLACK_WEBHOOK_URL to your repo secrets)
+      #
+      # - name: "Send Slack message"
+      #   run: |
+      #     curl -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+      #       -H "Content-Type: application/json" \
+      #       -d '{
+      #         "text": "❌ GitHub Actions failed in *${{ github.repository }}*!\nBranch: `${{ github.ref_name }}`\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+      #       }'
+
+      - name: "Write failure summary"
+        run: |
+          echo "## ❌ Workflow Failed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "A failure alert was triggered. Check the logs above." >> $GITHUB_STEP_SUMMARY
