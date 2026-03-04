@@ -265,7 +265,7 @@ async function publishToHashnode (meta, content) {
         input: {
           title: meta.title,
           contentMarkdown: content,
-          publicationId: HASHNODE_PUB_ID,
+          publicationId: HASHNODE_PUBLICATION_TOKEN,
           tags: (meta.tags || []).map(name => ({
             name: name.toLowerCase()
           }))
@@ -328,7 +328,7 @@ async function main () {
   const postFilename = savePost(meta, blogContent, slug)
 
   let hashnodePost
-  if (meta.publish !== false && HASHNODE_API_KEY && HASHNODE_PUB_ID) {
+  if (meta.publish !== false && HASHNODE_API_KEY && HASHNODE_PUBLICATION_TOKEN) {
     hashnodePost = await publishToHashnode(meta, blogContent)
     updateLog(resolvedTopicFile, postFilename, hashnodePost)
   } else if (meta.publish === false) {
