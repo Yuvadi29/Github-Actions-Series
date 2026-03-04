@@ -187,7 +187,7 @@ FORMAT: Return ONLY the blog post in markdown. No preamble, no "here is your pos
 
   const response = await post(
     'generativelanguage.googleapis.com',
-    `/v1beta/models/gemini-3.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    `/v1beta/models/gemini-3-flash-preview:generateContent?key=${GEMINI_API_KEY}`,
     {},
     {
       contents: [
