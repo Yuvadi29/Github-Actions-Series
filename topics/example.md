@@ -1,6 +1,5 @@
 ---
 title: "GitHub Actions Explained for Beginners — From Zero to Your First Pipeline"
-tags: ["github-actions", "devops", "beginners", "ci-cd"]
 audience: "beginner developers who have never used CI/CD before"
 publish: true
 ---

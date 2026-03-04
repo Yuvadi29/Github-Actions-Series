@@ -144,7 +144,6 @@ function readTopicFile () {
 
   console.log(`   Title    : ${meta.title}`)
   console.log(`   Audience : ${meta.audience || 'developers'}`)
-  console.log(`   Tags     : ${(meta.tags || []).join(', ')}`)
   console.log(
     `   Bullets  :\n${body
       .split('\n')
@@ -166,7 +165,6 @@ Write a complete, high-quality blog post based on the following:
 
 TITLE: ${meta.title}
 TARGET AUDIENCE: ${meta.audience || 'beginner to intermediate developers'}
-TAGS: ${(meta.tags || []).join(', ')}
 
 OUTLINE (expand each bullet point into a full section):
 ${bullets}
@@ -218,13 +216,11 @@ function savePost (meta, content, slug) {
     fs.mkdirSync(POSTS_DIR, { recursive: true })
   }
 
-  const tags = (meta.tags || []).map(t => `"${t}"`).join(', ')
   const filename = `${slug}.md`
   const filepath = path.join(POSTS_DIR, filename)
 
   const fileContent = `---
 title: "${meta.title}"
-tags: [${tags}]
 generated: true
 generatedAt: "${new Date().toISOString()}"
 publish: true
@@ -265,9 +261,6 @@ async function publishToHashnode (meta, content) {
           title: meta.title,
           contentMarkdown: content,
           publicationId: HASHNODE_PUBLICATION_TOKEN,
-          tags: (meta.tags || []).map(name => ({
-            name: name.toLowerCase()
-          }))
         }
       }
     }

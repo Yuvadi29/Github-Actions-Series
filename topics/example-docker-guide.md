@@ -1,6 +1,5 @@
 ---
 title: "Why Every Developer Should Learn Docker in 2025"
-tags: ["docker", "devops", "mach"]
 audience: "beginner developers"
 publish: false
 ---
