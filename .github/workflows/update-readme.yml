@@ -55,19 +55,7 @@ jobs:
           GITHUB_USERNAME: ${{ github.repository_owner }}
         run: node scripts/generate-readme.js
 
-      - name: "4. Check if README.md actually changed"
-        id: check
-        run: |
-          if git diff --cached --quiet README.md; then
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "ℹ️ README is already up to date. Nothing to commit."
-          else
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "README has new content — will commit."
-          fi
-
       - name: "5. Commit and push the updated README"
-        if: steps.check.outputs.changed == 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
