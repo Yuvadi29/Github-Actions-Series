@@ -1,0 +1,205 @@
+# WHAT IS CI/CD?
+#
+#   CI = Continuous Integration
+#        Every time you push code → it's automatically tested.
+#        You catch bugs BEFORE they reach users.
+#
+#   CD = Continuous Deployment
+#        After tests pass → code is automatically deployed.
+#        No manual "copy files to server" anymore.
+#
+# THIS PIPELINE HAS 4 STAGES:
+#
+#   Stage 1: Install & Test   → Run your tests automatically
+#   Stage 2: Build            → Package your app (Docker image)
+#   Stage 3: Deploy Staging   → Deploy to a test environment
+#   Stage 4: Deploy Production → Deploy to the real world (needs approval)
+#
+# Each stage ONLY runs if the previous one passed.
+# If tests fail → nothing gets deployed. 
+#
+# ============================================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main      # Run the full pipeline when you push to main
+      - develop   # Run tests only when you push to develop
+
+  pull_request:
+    branches:
+      - main      # Run tests when someone opens a PR to main
+
+  workflow_dispatch:   # Also allow manual trigger from GitHub UI
+
+
+# ── SHARED VARIABLES ─────────────────────────────────────────
+# These are available to all jobs below.
+env:
+  NODE_VERSION: "20"
+  APP_NAME: "coding-adda-app"
+
+
+jobs:
+
+  # ════════════════════════════════════════════════════════════
+  # STAGE 1: Install and Test
+  # This runs first, every time, on every push.
+  # ════════════════════════════════════════════════════════════
+  test:
+    name: "Stage 1 — Install & Test"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: "1a. Download my code onto the runner"
+        uses: actions/checkout@v4
+
+      - name: "1b. Set up Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm   # Cache node_modules to make future runs faster
+
+      - name: "1c. Install dependencies"
+        run: npm install
+        # In a real project use: npm ci
+        # ci is faster and safer (uses package-lock.json exactly)
+
+      - name: "1d. Run the tests"
+        run: npm test
+        # If this fails → stages 2, 3 and 4 will NOT run.
+        # That's the whole point of CI!
+
+      - name: "1e. Check code style (linting)"
+        run: npm run lint
+        continue-on-error: true   # Warn about lint issues but don't stop the pipeline
+
+
+  # ════════════════════════════════════════════════════════════
+  # STAGE 2: Build
+  # Only runs AFTER Stage 1 passes.
+  # Packages the app into a Docker image and pushes to GitHub's registry.
+  # ════════════════════════════════════════════════════════════
+  build:
+    name: "Stage 2 — Build Docker Image"
+    runs-on: ubuntu-latest
+    needs: test   # ← Wait for "test" job to finish and pass
+
+    # Only build on main branch (not on PRs or develop)
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: "2a. Download my code"
+        uses: actions/checkout@v4
+
+      - name: "2b. Log in to GitHub's container registry (GHCR)"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}            # Your GitHub username
+          password: ${{ secrets.GITHUB_TOKEN }}    # Auto-provided — no setup needed!
+
+      - name: "2c. Build the Docker image and push it"
+        uses: docker/build-push-action@v5
+        with:
+          context: .           # Build from the root of your project
+          push: true           # Actually push it to the registry
+          tags: |
+            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/${{ github.repository }}:${{ github.sha }}
+          # github.sha = the unique ID of this commit
+          # So every build gets a unique tag — easy to roll back!
+
+      - name: "2d. Confirm build"
+        run: |
+          echo "✅ Docker image built and pushed!"
+          echo "   Image: ghcr.io/${{ github.repository }}:latest"
+
+
+  # ════════════════════════════════════════════════════════════
+  # STAGE 3: Deploy to Staging
+  # Auto-deploys after a successful build.
+  # Staging = a copy of production for testing. Real users don't see it.
+  # ════════════════════════════════════════════════════════════
+  deploy-staging:
+    name: "Stage 3 — Deploy to Staging"
+    runs-on: ubuntu-latest
+    needs: build   # ← Wait for build to finish
+
+    # Tell GitHub this job uses the "staging" environment
+    # You can set up environment-specific secrets in Settings → Environments
+    environment:
+      name: staging
+      url: https://staging.myapp.com   # Shows as a link in the GitHub UI
+
+    steps:
+      - name: "3a. Deploy to staging server"
+        env:
+          SERVER: ${{ secrets.STAGING_SERVER }}     # Set in Settings → Environments
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}   # Set in Settings → Environments
+        run: |
+          echo "🚀 Deploying to staging..."
+          echo "   Server: $SERVER"
+          # In a real deployment you'd SSH into your server:
+          # ssh -i $SSH_KEY user@$SERVER "docker pull ghcr.io/${{ github.repository }}:latest && docker compose up -d"
+          echo "✅ Staging deploy complete!"
+
+      - name: "3b. Check if staging is healthy"
+        run: |
+          echo "Waiting 5 seconds for app to start..."
+          sleep 5
+          echo "Checking health endpoint..."
+          # curl --fail https://staging.myapp.com/health
+          echo "✅ Staging is healthy!"
+
+
+  # ════════════════════════════════════════════════════════════
+  # STAGE 4: Deploy to Production
+  # This stage PAUSES and waits for a human to approve it.
+  # Only then does it deploy to the real world.
+  #
+  # HOW TO SET UP APPROVAL:
+  #   1. Go to: Settings → Environments → New environment
+  #   2. Name it: production
+  #   3. Check "Required reviewers" and add yourself
+  #   4. Save. Now this stage will pause and send you an email!
+  # ════════════════════════════════════════════════════════════
+  deploy-production:
+    name: "Stage 4 — Deploy to Production (requires approval)"
+    runs-on: ubuntu-latest
+    needs: deploy-staging   # ← Wait for staging to succeed
+
+    environment:
+      name: production           # ← This triggers the approval gate
+      url: https://myapp.com
+
+    steps:
+      - name: "4a. Deploy to production server"
+        env:
+          SERVER: ${{ secrets.PROD_SERVER }}
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          echo "🌍 Deploying to PRODUCTION..."
+          echo "   This was approved by a human reviewer."
+          # ssh -i $SSH_KEY user@$SERVER "docker pull ghcr.io/${{ github.repository }}:latest && docker compose up -d"
+          echo "✅ Production deploy complete!"
+
+      - name: "4b. Verify production is running"
+        run: |
+          sleep 10
+          echo "Checking production health..."
+          # curl --fail https://myapp.com/health
+          echo "✅ Production is healthy and live!"
+
+      - name: "4c. Write a summary"
+        run: |
+          echo "## 🎉 Deployment Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Info | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| App | ${{ env.APP_NAME }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Branch | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL | https://myapp.com |" >> $GITHUB_STEP_SUMMARY
