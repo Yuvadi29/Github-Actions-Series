@@ -30,9 +30,9 @@
 # ──────────────────────────────────────────────────────────
 # SECRETS TO ADD (Settings → Secrets → Actions):
 #
-#   GEMINI_API_KEY       → https://aistudio.google.com/ → API Keys
-#   HASHNODE_API_KEY        → hashnode.com → Settings → Developer
-#   HASHNODE_PUBLICATION_ID → Your blog's publication ID
+#   GEMINI_API_KEY             → https://aistudio.google.com/ → API Keys
+#   HASHNODE_API_KEY           → hashnode.com → Settings → Developer
+#   HASHNODE_PUBLICATION_TOKEN → Your publication ID from Hashnode
 # ──────────────────────────────────────────────────────────
 
 name: Auto Blog Writer
@@ -40,9 +40,9 @@ name: Auto Blog Writer
 on:
   push:
     paths:
-      - 'topics/**'     # Only triggers when you add/edit a file in topics/
+      - "topics/**" # Only triggers when you add/edit a file in topics/
 
-  workflow_dispatch:    # Also run manually from GitHub UI
+  workflow_dispatch: # Also run manually from GitHub UI
     inputs:
       topic_file:
         description: "Which topic file to process? (e.g. topics/my-topic.md)"
@@ -55,19 +55,19 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write   # Needed to commit the generated post back
+      contents: write # Needed to commit the generated post back
 
     steps:
       - name: "1. Download the repo"
         uses: actions/checkout@v4
         with:
           persist-credentials: true
-          fetch-depth: 2   # Need 2 commits to detect which files changed
+          fetch-depth: 2 # Need 2 commits to detect which files changed
 
       - name: "2. Set up Node.js"
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: "3. Find which topic file was just added or changed"
         id: find-topic
@@ -92,10 +92,10 @@ jobs:
       - name: "4. Write and publish the blog post"
         if: steps.find-topic.outputs.found == 'true'
         env:
-          GEMINI_API_KEY             : ${{ secrets.GEMINI_API_KEY }}
-          HASHNODE_API_KEY           : ${{ secrets.HASHNODE_API_KEY }}
-          HASHNODE_PUBLICATION_ID    : ${{ secrets.HASHNODE_PUBLICATION_ID }}
-          TOPIC_FILE                 : ${{ steps.find-topic.outputs.file }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          HASHNODE_API_KEY: ${{ secrets.HASHNODE_API_KEY }}
+          HASHNODE_PUBLICATION_TOKEN: ${{ secrets.HASHNODE_PUBLICATION_TOKEN }}
+          TOPIC_FILE: ${{ steps.find-topic.outputs.file }}
         run: node scripts/auto-blog-writer.js
 
       - name: "5. Commit the generated blog post back to the repo"
@@ -105,7 +105,7 @@ jobs:
           git config user.email "bot@coding-adda.com"
 
           git add posts/
-          git add .published.json
+          git add .published.json || true
 
           # Only commit if there's something new
           if git diff --staged --quiet; then

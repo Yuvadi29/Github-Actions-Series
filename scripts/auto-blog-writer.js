@@ -265,7 +265,7 @@ async function publishToHashnode (meta, content) {
         input: {
           title: meta.title,
           contentMarkdown: content,
-          publicationId: HASHNODE_PUB_ID,
+          publicationId: HASHNODE_PUBLICATION_TOKEN,
           tags: (meta.tags || []).map(name => ({
             name: name.toLowerCase()
           }))
