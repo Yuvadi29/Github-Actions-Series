@@ -25,7 +25,7 @@ on:
 
   # Also run whenever you update the script
   push:
-    branches: [main]
+    branches: [master]
     paths:
       - 'scripts/generate-readme.js'
 
