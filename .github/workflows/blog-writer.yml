@@ -93,7 +93,7 @@ jobs:
         env:
           GEMINI_API_KEY       : ${{ secrets.GEMINI_API_KEY }}
           HASHNODE_API_KEY        : ${{ secrets.HASHNODE_API_KEY }}
-          HASHNODE_PUBLICATION_ID : ${{ secrets.HASHNODE_PUBLICATION_ID }}
+          HASHNODE_PUBLICATION_TOKEN : ${{ secrets.HASHNODE_PUBLICATION_TOKEN }}
           TOPIC_FILE              : ${{ steps.find-topic.outputs.file }}
         run: node scripts/auto-blog-writer.js
 
