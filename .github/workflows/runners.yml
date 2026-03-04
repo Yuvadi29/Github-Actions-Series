@@ -1,0 +1,120 @@
+# WHAT IS A RUNNER?
+#   A runner is the computer/machine that runs your workflow steps.
+#   When you write "runs-on: ubuntu-latest", you're telling GitHub
+#   "use one of your Linux machines to run this job."
+#
+# TWO TYPES OF RUNNERS:
+#
+#  GITHUB-HOSTED (easier, recommended for beginners)
+#  ─────────────────────────────────────────────────
+#  ✅ GitHub manages everything — you do nothing
+#  ✅ Always a fresh, clean machine every run
+#  ✅ Free for public repos (2000 min/month for private)
+#  ✅ Comes with Node, Python, Docker, Git pre-installed
+#  ❌ You can't access your private network/database
+#  ❌ Limited compute (2 CPU cores, 7 GB RAM on free plan)
+#
+#  SELF-HOSTED (advanced — Video 6 covers setup)
+#  ─────────────────────────────────────────────
+#  ✅ Runs on YOUR machine or server
+#  ✅ Can access your private databases and internal tools
+#  ✅ No minute limits — use as much as you want
+#  ✅ Can have custom hardware (e.g. GPU for AI/ML)
+#  ❌ YOU have to manage, update and secure the machine
+#  ❌ More setup work required
+#
+# ============================================================
+
+name: Learn - GitHub Action Runners
+
+on:
+  workflow_dispatch:   # Run manually from GitHub UI
+
+jobs:
+
+  # ════════════════════════════════════════════════════════════
+  # JOB 1: Ubuntu Linux (most common — use this 90% of the time)
+  # ════════════════════════════════════════════════════════════
+  ubuntu-runner:
+    name: "GitHub-Hosted: Linux (Ubuntu)"
+    runs-on: ubuntu-latest   # ← Tells GitHub: give me a Linux machine
+
+    steps:
+      - name: What OS am I running on?
+        run: |
+          echo "Operating System:"
+          lsb_release -d
+
+      - name: What hardware do I have?
+        run: |
+          echo "CPU Cores : $(nproc)"
+          echo "RAM       : $(free -h | awk '/^Mem:/ {print $2}')"
+          echo "Disk Free : $(df -h / | awk 'NR==2 {print $4}')"
+
+      - name: What tools are pre-installed?
+        run: |
+          echo "--- Languages ---"
+          node    --version
+          python3 --version
+          go      version
+
+          echo "--- Tools ---"
+          git    --version
+          docker --version
+          curl   --version | head -1
+
+      - name: Key fact about GitHub-hosted runners
+        run: |
+          echo "✅ This machine is ALWAYS fresh."
+          echo "   Nothing from a previous run is saved here."
+          echo "   Every run starts from a clean slate."
+
+
+  # ════════════════════════════════════════════════════════════
+  # JOB 2: Windows Runner
+  # ════════════════════════════════════════════════════════════
+  windows-runner:
+    name: "GitHub-Hosted: Windows"
+    runs-on: windows-latest
+
+    steps:
+      - name: Show Windows info
+        shell: pwsh   # PowerShell
+        run: |
+          Write-Host "OS      : $([System.Environment]::OSVersion.VersionString)"
+          Write-Host "CPU     : $((Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors) cores"
+          node --version
+
+
+  # ════════════════════════════════════════════════════════════
+  # JOB 3: macOS Runner
+  # ════════════════════════════════════════════════════════════
+  macos-runner:
+    name: "GitHub-Hosted: macOS"
+    runs-on: macos-latest
+
+    steps:
+      - name: Show macOS info
+        run: |
+          echo "OS  : $(sw_vers -productVersion)"
+          echo "CPU : $(sysctl -n hw.ncpu) cores"
+          node --version
+
+
+  # ════════════════════════════════════════════════════════════
+  # JOB 4: Run the SAME job across MULTIPLE machines at once
+  # This is called a "matrix" strategy.
+  # Useful when you want to test on multiple OS versions.
+  # ════════════════════════════════════════════════════════════
+  matrix-example:
+    name: "Test on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}   # The OS comes from the matrix below
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        # GitHub will spin up 3 separate jobs — one per OS — all in parallel!
+
+    steps:
+      - name: Print the OS name
+        run: echo "Running on ${{ matrix.os }}"
