@@ -1,0 +1,116 @@
+# ============================================================
+# AUTO BLOG WRITER — GitHub Actions + Claude AI + Hashnode
+# ============================================================
+#
+# HOW TO USE:
+#   1. Create a file in the topics/ folder like this:
+#
+#      topics/why-you-should-learn-docker.md
+#      ───────────────────────────────────────
+#      ---
+#      title: "Why Every Developer Should Learn Docker in 2025"
+#      tags: ["docker", "devops", "beginners"]
+#      audience: "beginner developers"
+#      publish: true
+#      ---
+#
+#      - Docker solves the "works on my machine" problem
+#      - Containers vs Virtual Machines — what's the difference
+#      - How Docker makes deployment 10x easier
+#      - Basic commands every dev should know
+#      - Real example: dockerizing a Node.js app
+#      ───────────────────────────────────────
+#
+#   2. git push to main
+#   3. This workflow triggers automatically
+#   4. Claude writes a full blog post from your bullet points
+#   5. It gets published to Hashnode
+#   6. The generated post is saved back to your repo in posts/
+#
+# ──────────────────────────────────────────────────────────
+# SECRETS TO ADD (Settings → Secrets → Actions):
+#
+#   GEMINI_API_KEY       → https://aistudio.google.com/ → API Keys
+#   HASHNODE_API_KEY        → hashnode.com → Settings → Developer
+#   HASHNODE_PUBLICATION_ID → Your blog's publication ID
+# ──────────────────────────────────────────────────────────
+
+name: Auto Blog Writer
+
+on:
+  push:
+    paths:
+      - 'topics/**'     # Only triggers when you add/edit a file in topics/
+
+  workflow_dispatch:    # Also run manually from GitHub UI
+    inputs:
+      topic_file:
+        description: "Which topic file to process? (e.g. topics/my-topic.md)"
+        type: string
+        required: false
+
+jobs:
+  write-and-publish:
+    name: "Write Blog Post with AI and Publish"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # Needed to commit the generated post back
+
+    steps:
+      - name: "1. Download the repo"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   # Need 2 commits to detect which files changed
+
+      - name: "2. Set up Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: "3. Find which topic file was just added or changed"
+        id: find-topic
+        run: |
+          if [ -n "${{ inputs.topic_file }}" ]; then
+            # Manual trigger — use the file they specified
+            TOPIC_FILE="${{ inputs.topic_file }}"
+          else
+            # Auto trigger — find which topics/ file changed in this push
+            TOPIC_FILE=$(git diff --name-only HEAD~1 HEAD -- 'topics/*.md' | head -1)
+          fi
+
+          if [ -z "$TOPIC_FILE" ]; then
+            echo "No topic file found in this push. Skipping."
+            echo "found=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found topic file: $TOPIC_FILE"
+            echo "found=true"       >> $GITHUB_OUTPUT
+            echo "file=$TOPIC_FILE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: "4. Write and publish the blog post"
+        if: steps.find-topic.outputs.found == 'true'
+        env:
+          GEMINI_API_KEY       : ${{ secrets.GEMINI_API_KEY }}
+          HASHNODE_API_KEY        : ${{ secrets.HASHNODE_API_KEY }}
+          HASHNODE_PUBLICATION_ID : ${{ secrets.HASHNODE_PUBLICATION_ID }}
+          TOPIC_FILE              : ${{ steps.find-topic.outputs.file }}
+        run: node scripts/auto-blog-writer.js
+
+      - name: "5. Commit the generated blog post back to the repo"
+        if: steps.find-topic.outputs.found == 'true'
+        run: |
+          git config user.name  "Blog Writer Bot"
+          git config user.email "bot@coding-adda.com"
+
+          git add posts/
+          git add .published.json
+
+          # Only commit if there's something new
+          if git diff --staged --quiet; then
+            echo "Nothing new to commit."
+          else
+            git commit -m "📝 Auto-generated blog post [skip ci]"
+            git push
+            echo "✅ Generated post committed to repo!"
+          fi
