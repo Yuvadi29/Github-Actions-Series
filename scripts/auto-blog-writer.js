@@ -17,7 +17,7 @@ const path = require('path')
 // ── Config ────────────────────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const HASHNODE_API_KEY = process.env.HASHNODE_API_KEY
-const HASHNODE_PUB_ID = process.env.HASHNODE_PUBLICATION_TOKEN
+const HASHNODE_PUBLICATION_TOKEN = process.env.HASHNODE_PUBLICATION_TOKEN
 const TOPIC_FILE = process.env.TOPIC_FILE
 
 const POSTS_DIR = path.join(process.cwd(), 'posts')
@@ -29,19 +29,33 @@ if (!GEMINI_API_KEY) {
   process.exit(1)
 }
 if (!HASHNODE_API_KEY) {
-  console.error('❌ HASHNODE_API_KEY not set')
-  process.exit(1)
+  console.error('❌ HASHNODE_API_KEY not set (optional for local testing)')
 }
-if (!HASHNODE_PUB_ID) {
-  console.error('❌ HASHNODE_PUBLICATION_TOKEN not set')
-  process.exit(1)
+if (!HASHNODE_PUBLICATION_TOKEN) {
+  console.error(
+    '⚠️  HASHNODE_PUBLICATION_TOKEN not set (publication will be skipped)'
+  )
 }
 if (!TOPIC_FILE) {
   console.error('❌ TOPIC_FILE not set')
   process.exit(1)
 }
-if (!fs.existsSync(TOPIC_FILE)) {
-  console.error(`❌ Topic file not found: ${TOPIC_FILE}`)
+// TOPIC_FILE might be relative or absolute; try both
+const topicPathAttempts = [
+  TOPIC_FILE,
+  path.join(process.cwd(), TOPIC_FILE),
+  path.join(process.cwd(), 'topics', TOPIC_FILE)
+]
+let resolvedTopicFile = null
+for (const attempt of topicPathAttempts) {
+  if (fs.existsSync(attempt)) {
+    resolvedTopicFile = attempt
+    break
+  }
+}
+if (!resolvedTopicFile) {
+  console.error(`❌ Topic file not found at: ${TOPIC_FILE}`)
+  console.error(`   Tried:`, topicPathAttempts)
   process.exit(1)
 }
 
@@ -120,8 +134,8 @@ function toSlug (filename) {
 
 // ── Step 1: Read the topic file ───────────────────────────────
 function readTopicFile () {
-  console.log(`\n📖 Reading topic file: ${TOPIC_FILE}`)
-  const content = fs.readFileSync(TOPIC_FILE, 'utf8')
+  console.log(`\n📖 Reading topic file: ${resolvedTopicFile}`)
+  const content = fs.readFileSync(resolvedTopicFile, 'utf8')
   const { meta, body } = parseFrontmatter(content)
 
   if (!meta.title) {
@@ -172,13 +186,15 @@ WRITING INSTRUCTIONS:
 FORMAT: Return ONLY the blog post in markdown. No preamble, no "here is your post", just the content.`
 
   const response = await post(
-    'https://generativelanguage.googleapis.com',
-    'v1beta/models/gemini-flash-latest:generateContent',
+    'generativelanguage.googleapis.com',
+    `/v1beta/models/gemini-3.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+    {},
     {
-      'X-goog-api-key': GEMINI_API_KEY
-    },
-    {
-      contents: [{ role: 'system', content: prompt }]
+      contents: [
+        {
+          parts: [{ text: prompt }]
+        }
+      ]
     }
   )
 
@@ -186,8 +202,9 @@ FORMAT: Return ONLY the blog post in markdown. No preamble, no "here is your pos
     throw new Error(`Gemini API error: ${response.error.message}`)
   }
 
-  const content = response.content?.[0]?.text
+  const content = response.candidates?.[0]?.content?.parts?.[0]?.text
   if (!content) {
+    console.error('Gemini response:', JSON.stringify(response, null, 2))
     throw new Error('Gemini returned an empty response')
   }
 
@@ -226,13 +243,13 @@ async function publishToHashnode (meta, content) {
   console.log('\n🚀 Publishing to Hashnode...')
 
   const mutation = `
-    mutation PublishPost($input: PublishPostInput!) {
-      publishPost(input: $input) {
-        post {
+    mutation CreateStory($input: CreateStoryInput!) {
+      createStory(input: $input) {
+        story {
           id
           title
           url
-          publishedAt
+          slug
         }
       }
     }
@@ -241,7 +258,7 @@ async function publishToHashnode (meta, content) {
   const response = await post(
     'gql.hashnode.com',
     '/',
-    { Authorization: HASHNODE_API_KEY },
+    { Authorization: `${HASHNODE_API_KEY}` },
     {
       query: mutation,
       variables: {
@@ -250,8 +267,7 @@ async function publishToHashnode (meta, content) {
           contentMarkdown: content,
           publicationId: HASHNODE_PUB_ID,
           tags: (meta.tags || []).map(name => ({
-            name,
-            slug: name.toLowerCase().replace(/\s+/g, '-')
+            name: name.toLowerCase()
           }))
         }
       }
@@ -262,7 +278,11 @@ async function publishToHashnode (meta, content) {
     throw new Error(`Hashnode error: ${response.errors[0].message}`)
   }
 
-  return response.data.publishPost.post
+  if (!response.data?.createStory?.story) {
+    throw new Error('Hashnode returned unexpected response format')
+  }
+
+  return response.data.createStory.story
 }
 
 // ── Step 5: Update the published log ─────────────────────────
@@ -294,9 +314,9 @@ async function main () {
     ? JSON.parse(fs.readFileSync(PUBLISHED_LOG, 'utf8'))
     : {}
 
-  if (log[TOPIC_FILE]) {
-    console.log(`\n⏭️  Already published: ${TOPIC_FILE}`)
-    console.log(`   URL: ${log[TOPIC_FILE].url}`)
+  if (log[resolvedTopicFile]) {
+    console.log(`\n⏭️  Already published: ${resolvedTopicFile}`)
+    console.log(`   URL: ${log[resolvedTopicFile].url}`)
     console.log('   Delete its entry from .published.json to re-publish.')
     return
   }
@@ -308,13 +328,15 @@ async function main () {
   const postFilename = savePost(meta, blogContent, slug)
 
   let hashnodePost
-  if (meta.publish !== false) {
+  if (meta.publish !== false && HASHNODE_API_KEY && HASHNODE_PUB_ID) {
     hashnodePost = await publishToHashnode(meta, blogContent)
-    updateLog(TOPIC_FILE, postFilename, hashnodePost)
-  } else {
+    updateLog(resolvedTopicFile, postFilename, hashnodePost)
+  } else if (meta.publish === false) {
     console.log(
       '\n⏭️  Skipping Hashnode publish (publish: false in frontmatter)'
     )
+  } else {
+    console.log('\n⚠️  Skipping Hashnode publish (missing API credentials)')
   }
 
   // Write GitHub Actions step summary
