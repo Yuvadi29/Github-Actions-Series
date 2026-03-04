@@ -249,7 +249,6 @@ async function publishToHashnode (meta, content) {
           id
           title
           slug
-          contentMarkdown
         }
       }
     }
@@ -288,6 +287,7 @@ async function publishToHashnode (meta, content) {
     id: draft.id,
     title: draft.title,
     slug: draft.slug,
+    content: content,
     url: `https://hashnode.com/@${meta.hashnode_username || 'user'}/draft/${
       draft.id
     }`
