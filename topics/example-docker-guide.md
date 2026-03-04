@@ -1,7 +1,7 @@
 ---
 title: "Why Every Developer Should Learn Docker in 2025"
 audience: "beginner developers"
-publish: false
+publish: true
 ---
 
 - Docker solves the "works on my machine" problem
