@@ -17,7 +17,7 @@ const path = require('path')
 // ── Config ────────────────────────────────────────────────────
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY
 const HASHNODE_API_KEY = process.env.HASHNODE_API_KEY
-const HASHNODE_PUB_ID = process.env.HASHNODE_PUBLICATION_ID
+const HASHNODE_PUB_ID = process.env.HASHNODE_PUBLICATION_TOKEN
 const TOPIC_FILE = process.env.TOPIC_FILE
 
 const POSTS_DIR = path.join(process.cwd(), 'posts')
@@ -33,7 +33,7 @@ if (!HASHNODE_API_KEY) {
   process.exit(1)
 }
 if (!HASHNODE_PUB_ID) {
-  console.error('❌ HASHNODE_PUBLICATION_ID not set')
+  console.error('❌ HASHNODE_PUBLICATION_TOKEN not set')
   process.exit(1)
 }
 if (!TOPIC_FILE) {
