@@ -92,10 +92,10 @@ jobs:
       - name: "4. Write and publish the blog post"
         if: steps.find-topic.outputs.found == 'true'
         env:
-          GEMINI_API_KEY       : ${{ secrets.GEMINI_API_KEY }}
-          HASHNODE_API_KEY        : ${{ secrets.HASHNODE_API_KEY }}
-          HASHNODE_PUBLICATION_TOKEN : ${{ secrets.HASHNODE_PUBLICATION_TOKEN }}
-          TOPIC_FILE              : ${{ steps.find-topic.outputs.file }}
+          GEMINI_API_KEY             : ${{ secrets.GEMINI_API_KEY }}
+          HASHNODE_API_KEY           : ${{ secrets.HASHNODE_API_KEY }}
+          HASHNODE_PUBLICATION_ID    : ${{ secrets.HASHNODE_PUBLICATION_ID }}
+          TOPIC_FILE                 : ${{ steps.find-topic.outputs.file }}
         run: node scripts/auto-blog-writer.js
 
       - name: "5. Commit the generated blog post back to the repo"

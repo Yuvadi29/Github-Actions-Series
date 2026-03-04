@@ -243,13 +243,13 @@ async function publishToHashnode (meta, content) {
   console.log('\n🚀 Publishing to Hashnode...')
 
   const mutation = `
-    mutation CreateStory($input: CreateStoryInput!) {
-      createStory(input: $input) {
-        story {
+    mutation CreateDraft($input: CreateDraftInput!) {
+      createDraft(input: $input) {
+        draft {
           id
           title
-          url
           slug
+          contentMarkdown
         }
       }
     }
@@ -265,7 +265,7 @@ async function publishToHashnode (meta, content) {
         input: {
           title: meta.title,
           contentMarkdown: content,
-          publicationId: HASHNODE_PUBLICATION_TOKEN,
+          publicationId: HASHNODE_PUB_ID,
           tags: (meta.tags || []).map(name => ({
             name: name.toLowerCase()
           }))
@@ -278,11 +278,20 @@ async function publishToHashnode (meta, content) {
     throw new Error(`Hashnode error: ${response.errors[0].message}`)
   }
 
-  if (!response.data?.createStory?.story) {
+  if (!response.data?.createDraft?.draft) {
     throw new Error('Hashnode returned unexpected response format')
   }
 
-  return response.data.createStory.story
+  const draft = response.data.createDraft.draft
+  console.log(`   ✅ Draft created: ${draft.title}`)
+  return {
+    id: draft.id,
+    title: draft.title,
+    slug: draft.slug,
+    url: `https://hashnode.com/@${meta.hashnode_username || 'user'}/draft/${
+      draft.id
+    }`
+  }
 }
 
 // ── Step 5: Update the published log ─────────────────────────
@@ -328,7 +337,11 @@ async function main () {
   const postFilename = savePost(meta, blogContent, slug)
 
   let hashnodePost
-  if (meta.publish !== false && HASHNODE_API_KEY && HASHNODE_PUBLICATION_TOKEN) {
+  if (
+    meta.publish !== false &&
+    HASHNODE_API_KEY &&
+    HASHNODE_PUBLICATION_TOKEN
+  ) {
     hashnodePost = await publishToHashnode(meta, blogContent)
     updateLog(resolvedTopicFile, postFilename, hashnodePost)
   } else if (meta.publish === false) {
