@@ -1,0 +1,257 @@
+# WHAT THIS VIDEO COVERS:
+#   A self-hosted runner is YOUR own machine acting as the
+#   computer that runs GitHub Actions jobs.
+#
+#   Instead of installing software directly on your computer,
+#   we'll use Docker — which runs everything in a safe,
+#   isolated container. Much cleaner!
+#
+# ──────────────────────────────────────────────────────────────
+# BEFORE YOU START — Install these two things:
+# ──────────────────────────────────────────────────────────────
+#   1. Docker Desktop  → https://www.docker.com/products/docker-desktop
+#   2. Git             → https://git-scm.com
+#
+# ──────────────────────────────────────────────────────────────
+# STEP-BY-STEP SETUP (do these ONCE before using this workflow)
+# ──────────────────────────────────────────────────────────────
+#
+#  STEP 1 — Get your GitHub Personal Access Token (PAT)
+#  ────────────────────────────────────────────────────
+#   1. Go to: github.com → Click your profile picture → Settings
+#   2. Scroll down → Click "Developer settings" (bottom of left sidebar)
+#   3. Click "Personal access tokens" → "Tokens (classic)"
+#   4. Click "Generate new token (classic)"
+#   5. Give it a name: "self-hosted-runner"
+#   6. Set expiration: 90 days (or No expiration for learning)
+#   7. Check these scopes: ✅ repo   ✅ workflow
+#   8. Click "Generate token"
+#   9. COPY the token — you only see it ONCE! Starts with: ghp_
+#
+#  STEP 2 — Create a folder on your computer
+#  ──────────────────────────────────────────
+#   Open your terminal and run:
+#     mkdir my-runner
+#     cd my-runner
+#
+#  STEP 3 — Create 3 files in that folder:
+#  ────────────────────────────────────────
+#   Files needed:
+#     Dockerfile        ← defines the machine
+#     start.sh          ← registers with GitHub
+#     docker-compose.yml ← easy way to run it
+#
+#   (All 3 files are shown below in the APPENDIX section)
+#
+#  STEP 4 — Create your .env file (your secrets — never commit this!)
+#  ──────────────────────────────────────────────────────────────────
+#   In the same folder, create a file called: .env
+#   Paste this inside (fill in YOUR values):
+#
+#     GITHUB_TOKEN=ghp_your_token_here
+#     REPO_URL=https://github.com/your-username/your-repo
+#
+#  STEP 5 — Build and Start the Runner
+#  ─────────────────────────────────────
+#   In your terminal, inside the my-runner folder, run:
+#
+#     docker compose up --build
+#
+#   You'll see something like:
+#     ✅ Got registration token
+#     ✅ Runner configured
+#     🚀 Runner is ONLINE — waiting for jobs...
+#
+#  STEP 6 — Verify it's connected to GitHub
+#  ─────────────────────────────────────────
+#   1. Go to your GitHub repo
+#   2. Click Settings → Actions → Runners
+#   3. You should see your runner listed as "Idle" (green dot) ✅
+#
+#  STEP 7 — Use it in a workflow!
+#  ────────────────────────────────
+#   In any workflow file, change:
+#     runs-on: ubuntu-latest
+#   to:
+#     runs-on: self-hosted
+#
+# ──────────────────────────────────────────────────────────────
+# STOPPING THE RUNNER
+# ──────────────────────────────────────────────────────────────
+#   Press Ctrl+C in the terminal, or run:
+#     docker compose down
+#   This automatically deregisters the runner from GitHub.
+#
+# ============================================================
+
+# ── THIS IS THE WORKFLOW THAT USES YOUR SELF-HOSTED RUNNER ──
+# Save this as: .github/workflows/use-self-hosted-runner.yml
+# in your GitHub repository.
+
+name: Use My Self-Hosted Runner
+
+on:
+  workflow_dispatch:   # Run manually from GitHub UI to test it
+
+jobs:
+  run-on-my-machine:
+    name: "Run on Self-Hosted Docker Runner"
+    runs-on: self-hosted   # ← Uses YOUR Docker container as the runner
+
+    steps:
+      - name: Checkout my code
+        uses: actions/checkout@v4
+
+      - name: Prove this is my own machine
+        run: |
+          echo "==============================="
+          echo "  Running on my own machine!"
+          echo "==============================="
+          echo "Hostname : $(hostname)"
+          echo "User     : $(whoami)"
+          echo "OS       : $(lsb_release -d | cut -f2)"
+
+      - name: Show Node.js version (installed in Dockerfile)
+        run: node --version
+
+      - name: Run a simple test
+        run: |
+          echo "✅ Self-hosted runner is working!"
+          echo "   Your code is now running on your own computer."
+
+
+# ════════════════════════════════════════════════════════════
+# APPENDIX: The 3 files you need to create in my-runner/
+# ════════════════════════════════════════════════════════════
+#
+# ────────────────────────────────────────────────────────────
+# FILE 1: Dockerfile
+# (Save as: my-runner/Dockerfile — no file extension)
+# ────────────────────────────────────────────────────────────
+#
+#   FROM ubuntu:22.04
+#
+#   # Don't ask for user input during install
+#   ENV DEBIAN_FRONTEND=noninteractive
+#
+#   # Install the basics
+#   RUN apt-get update && apt-get install -y \
+#       curl git jq sudo unzip ca-certificates \
+#       && rm -rf /var/lib/apt/lists/*
+#
+#   # Install Node.js 20
+#   RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+#       && apt-get install -y nodejs \
+#       && rm -rf /var/lib/apt/lists/*
+#
+#   # Create a safe non-root user called "runner"
+#   RUN useradd -m -s /bin/bash runner \
+#       && echo "runner ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+#
+#   # Download the GitHub Actions runner app
+#   ENV RUNNER_VERSION=2.316.1
+#   WORKDIR /home/runner
+#
+#   RUN curl -o runner.tar.gz -L \
+#       "https://github.com/actions/runner/releases/download/v${RUNNER_VERSION}/actions-runner-linux-x64-${RUNNER_VERSION}.tar.gz" \
+#       && tar xzf runner.tar.gz \
+#       && rm runner.tar.gz \
+#       && ./bin/installdependencies.sh
+#
+#   # Copy our startup script into the container
+#   COPY start.sh /home/runner/start.sh
+#   RUN chmod +x /home/runner/start.sh \
+#       && chown -R runner:runner /home/runner
+#
+#   # Switch to non-root user for security
+#   USER runner
+#
+#   # When the container starts, run start.sh
+#   ENTRYPOINT ["/home/runner/start.sh"]
+#
+#
+# ────────────────────────────────────────────────────────────
+# FILE 2: start.sh
+# (Save as: my-runner/start.sh)
+# ────────────────────────────────────────────────────────────
+#
+#   #!/bin/bash
+#   set -e
+#
+#   # Check required variables
+#   if [ -z "$GITHUB_TOKEN" ]; then
+#     echo "❌ GITHUB_TOKEN is not set in your .env file"
+#     exit 1
+#   fi
+#   if [ -z "$REPO_URL" ]; then
+#     echo "❌ REPO_URL is not set in your .env file"
+#     exit 1
+#   fi
+#
+#   RUNNER_NAME=${RUNNER_NAME:-"my-docker-runner"}
+#   RUNNER_LABELS=${RUNNER_LABELS:-"self-hosted,docker,linux"}
+#
+#   echo "🔑 Getting registration token from GitHub..."
+#   REPO_PATH=$(echo "$REPO_URL" | sed 's|https://github.com/||')
+#   REG_TOKEN=$(curl -s -X POST \
+#     -H "Authorization: Bearer $GITHUB_TOKEN" \
+#     -H "Accept: application/vnd.github+json" \
+#     "https://api.github.com/repos/${REPO_PATH}/actions/runners/registration-token" \
+#     | jq -r '.token')
+#
+#   if [ -z "$REG_TOKEN" ] || [ "$REG_TOKEN" == "null" ]; then
+#     echo "❌ Could not get token. Check your GITHUB_TOKEN and REPO_URL."
+#     exit 1
+#   fi
+#   echo "✅ Got registration token"
+#
+#   echo "⚙️  Registering runner with GitHub..."
+#   ./config.sh \
+#     --url "$REPO_URL" \
+#     --token "$REG_TOKEN" \
+#     --name "$RUNNER_NAME" \
+#     --labels "$RUNNER_LABELS" \
+#     --unattended \
+#     --replace
+#   echo "✅ Runner registered"
+#
+#   # Auto-deregister when you stop the container (Ctrl+C)
+#   cleanup() {
+#     echo "🛑 Shutting down — removing runner from GitHub..."
+#     ./config.sh remove --token "$REG_TOKEN"
+#     echo "✅ Runner removed cleanly"
+#   }
+#   trap cleanup EXIT SIGTERM SIGINT
+#
+#   echo "🚀 Runner is ONLINE — waiting for GitHub jobs..."
+#   ./run.sh
+#
+#
+# ────────────────────────────────────────────────────────────
+# FILE 3: docker-compose.yml
+# (Save as: my-runner/docker-compose.yml)
+# ────────────────────────────────────────────────────────────
+#
+#   services:
+#     runner:
+#       build: .
+#       image: my-github-runner
+#       env_file: .env           # Reads GITHUB_TOKEN and REPO_URL from .env
+#       environment:
+#         RUNNER_NAME: my-docker-runner
+#         RUNNER_LABELS: self-hosted,docker,linux
+#       restart: unless-stopped  # Auto-restart if it crashes
+#
+#
+# ────────────────────────────────────────────────────────────
+# FILE 4: .env  (your secrets — ADD THIS TO .gitignore!)
+# (Save as: my-runner/.env)
+# ────────────────────────────────────────────────────────────
+#
+#   GITHUB_TOKEN=ghp_your_actual_token_here
+#   REPO_URL=https://github.com/your-username/your-repo-name
+#
+# ⚠️  NEVER push .env to GitHub. Add it to .gitignore:
+#     echo ".env" >> .gitignore
+#
+# ════════════════════════════════════════════════════════════

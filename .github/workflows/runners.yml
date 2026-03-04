@@ -118,3 +118,25 @@ jobs:
     steps:
       - name: Print the OS name
         run: echo "Running on ${{ matrix.os }}"
+
+
+  # ════════════════════════════════════════════════════════════
+  # JOB 5: Self-Hosted Runner (reference — see Video 6 for setup)
+  # ════════════════════════════════════════════════════════════
+  self-hosted-reference:
+    name: "Self-Hosted Runner (Demo — disabled)"
+    runs-on: self-hosted   # ← Uses YOUR machine instead of GitHub's
+    if: false              # ← Disabled for now. Remove this line after Video 6 setup.
+
+    steps:
+      - name: Show self-hosted machine info
+        run: |
+          echo "This is running on MY OWN machine!"
+          echo "Hostname : $(hostname)"
+          echo "User     : $(whoami)"
+
+      - name: Access private network (example)
+        run: |
+          echo "Self-hosted runners can reach internal services"
+          echo "that GitHub's servers cannot — like a private database."
+          # Example: curl http://internal-database.local/health

@@ -1,0 +1,11 @@
+services:
+     runner:
+       platform: linux/arm64
+       build: .
+       image: my-github-runner
+       env_file: .env           # Reads GITHUB_TOKEN and REPO_URL from .env
+       environment:
+         RUNNER_NAME: my-docker-runner
+         RUNNER_LABELS: self-hosted,docker,linux
+       restart: unless-stopped  # Auto-restart if it crashes
+
