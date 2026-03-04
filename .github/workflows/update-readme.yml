@@ -1,0 +1,79 @@
+# WHAT THIS DOES:
+#   Every minute, this workflow:
+#     1. Runs a Node.js script (generate-readme.js)
+#     2. The script fetches your GitHub stats + blog posts
+#     3. It writes a fresh README.md with live data
+#     4. If README changed → auto-commits and pushes it
+#
+# You never have to manually update your README again!
+#
+# SETUP (one-time):
+#   1. Add this file to .github/workflows/
+#   2. Add generate-readme.js to a scripts/ folder (see below)
+#   3. Go to Settings → Actions → General
+#      → Set "Workflow permissions" to "Read and write permissions"
+#   4. Push to main — the first run will generate your README!
+#
+# ============================================================
+
+name: Auto-Update README
+
+on:
+  # Run every day 
+  schedule:
+    - cron: '* * * * *'
+
+  # Also run whenever you update the script
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/generate-readme.js'
+
+  # Allow running manually from GitHub UI
+  workflow_dispatch:
+
+jobs:
+  update-readme:
+    name: "Generate and Commit README"
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write   # Needed so the workflow can commit back to the repo
+
+    steps:
+      - name: "1. Download the repo"
+        uses: actions/checkout@v4
+
+      - name: "2. Set up Node.js"
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: "3. Run the README generator script"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # Auto-provided
+          GITHUB_USERNAME: ${{ github.repository_owner }}
+        run: node scripts/generate-readme.js
+
+      - name: "4. Check if README.md actually changed"
+        id: check
+        run: |
+          if git diff --quiet README.md; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ README is already up to date. Nothing to commit."
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "README has new content — will commit."
+          fi
+
+      - name: "5. Commit and push the updated README"
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          git commit -m "docs: auto-update README [skip ci]"
+          git push
+          echo "✅ README pushed to GitHub!"
+          # [skip ci] in the commit message tells GitHub NOT to re-run
+          # this workflow again for this commit. Prevents infinite loop!
