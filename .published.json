@@ -3,5 +3,10 @@
     "postFile": "example.md",
     "hashnodeId": "69a7f210bf432d8354a006e7",
     "url": "https://hashnode.com/@user/draft/69a7f210bf432d8354a006e7"
+  },
+  "topics/example-docker-guide.md": {
+    "postFile": "example-docker-guide.md",
+    "hashnodeId": "69a7f307c4c696c5b6bc7a23",
+    "url": "https://hashnode.com/@user/draft/69a7f307c4c696c5b6bc7a23"
   }
 }
