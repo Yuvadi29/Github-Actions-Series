@@ -21,7 +21,7 @@ name: Auto-Update README
 on:
   # Run every day 
   schedule:
-    - cron: '* * * * *'
+    - cron: '20 7 * * 6'
 
   # Also run whenever you update the script
   push:
